@@ -32,3 +32,8 @@ locals {
     "roles/iam.serviceAccountUser",
   ]
 }
+
+resource "google_service_account" "terraform-test" {
+  account_id   = "todo-poc-terraform"
+  display_name = "todo-poc-terraform-service-account"
+}
