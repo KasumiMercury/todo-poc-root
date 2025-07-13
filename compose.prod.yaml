@@ -15,7 +15,7 @@ services:
       - app-network
 
   postgres:
-    image: postgres:15
+    image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_USER: user
