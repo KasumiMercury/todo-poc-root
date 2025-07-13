@@ -31,9 +31,56 @@ locals {
     "roles/run.developer",
     "roles/iam.serviceAccountUser",
   ]
+  repo_name = "KasumiMercury/todo-server-poc-go"
+}
+
+resource "google_project_service" "default" {
+  service = "iamcredentials.googleapis.com"
 }
 
 resource "google_service_account" "terraform-test" {
   account_id   = "todo-poc-terraform"
   display_name = "todo-poc-terraform-service-account"
+}
+
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github"
+  display_name              = "GitHub Workload Identity Pool"
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Provider"
+
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+    "attribute.owner"      = "assertion.repository_owner"
+    "attribute.ref"        = "assertion.ref"
+  }
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+resource "google_service_account_iam_member" "github-account-iam" {
+  service_account_id = google_service_account.terraform-test.id
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo_name}"
+}
+
+resource "google_project_iam_member" "service_account" {
+  count   = length(local.cloudrun_roles)
+  project = var.project_id
+  role    = element(local.cloudrun_roles, count.index)
+  member  = "serviceAccount:${google_service_account.terraform-test.email}"
+}
+
+output "service_account_github_actions_email" {
+  value       = google_service_account.terraform-test.email
+}
+
+output "google_iam_workload_identity_pool_provider_github_name" {
+  value       = google_iam_workload_identity_pool_provider.github.name
 }
