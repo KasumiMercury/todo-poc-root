@@ -1,4 +1,4 @@
-name: Terraform Lint and Plan
+name: Terraform Lint and Scan
 on:
     workflow_dispatch:
     pull_request:
@@ -71,5 +71,5 @@ jobs:
               with:
                 recreate: true
                 GITHUB_TOKEN: ${{ secrets.github_token }}
-                path: trivy-result.md
+                path: terraform/trivy-result.md
                 
