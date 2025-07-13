@@ -36,3 +36,40 @@ jobs:
 
             - name: Run TFlint
               run: tflint --recursive -f compact
+    Scan:
+        name: Scan
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                  working-directory: terraform
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+            - name: Trivy Scan
+              uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # 0.32.0
+              with:
+                scan-type: "config"
+                severity: "HIGH,CRITICAL"
+                scan-ref: "."
+                output: trivy-scan-result.txt
+
+            - name: Format Trivy Scan Result
+              run: |
+                if [ -s trivy-scan-result.txt ]; then
+                    echo "## Trivy Scan Results" > trivy-result.md
+                    echo "" >> trivy-result.md
+                    echo "### High and Critical Severity Issues" >> trivy-result.md
+                    echo "" >> trivy-result.md
+                    cat trivy-scan-result.txt | grep -E 'HIGH|CRITICAL' >> trivy-result.md
+                else
+                    echo "No High or Critical severity issues found." > trivy-result.md
+                fi
+
+            - name: Comment PR with Trivy scan results
+              uses: marocchino/sticky-pull-request-comment@52423e01640425a022ef5fd42c6fb5f633a02728 # v2.9.1
+              with:
+                recreate: true
+                GITHUB_TOKEN: ${{ secrets.github_token }}
+                path: trivy-result.md
+                
