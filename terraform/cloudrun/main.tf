@@ -35,6 +35,7 @@ resource "google_cloud_run_v2_service" "default" {
     }
     service_account = "${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
   }
+  deletion_protection = false
 }
 
 output "urls" {
