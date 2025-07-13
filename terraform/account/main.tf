@@ -81,13 +81,6 @@ resource "google_service_account_iam_member" "github-account-iam" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo_owner}/${local.repo_name}"
 }
 
-resource "google_project_iam_member" "service_account" {
-  count   = length(local.cloudrun_roles)
-  project = var.project_id
-  role    = element(local.cloudrun_roles, count.index)
-  member  = "serviceAccount:${google_service_account.terraform-test.email}"
-}
-
 output "service_account_github_actions_email" {
   value       = google_service_account.terraform-test.email
 }
