@@ -34,11 +34,6 @@ provider "google" {
 }
 
 locals {
-  cloudrun_roles = [
-    "roles/run.developer",
-    "roles/iam.serviceAccountUser",
-    "roles/artifactregistry.writer"
-  ]
   repo_owner = "KasumiMercury"
   repo_name = "todo-server-poc-go"
 }
