@@ -1,0 +1,6 @@
+pre-push:
+  jobs:
+    - name: "tflint"
+      run: tflint --recursive -f compact
+    - name: "trivy scan"
+      run: trivy config terraform --exit-code 1

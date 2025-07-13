@@ -45,6 +45,26 @@ resource "google_cloud_run_v2_service" "default" {
   deletion_protection = false
 }
 
+resource "google_cloud_run_v2_service_iam_member" "run_admin" {
+  project  = var.project_id
+  location = google_cloud_run_v2_service.default.location
+  name     = google_cloud_run_v2_service.default.name
+  role     = "roles/run.admin"
+  member   = "serviceAccount:${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "service_account_user" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "artifactregistry_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${var.service_account_id}@${var.project_id}.iam.gserviceaccount.com"
+}
+
 output "urls" {
   value = google_cloud_run_v2_service.default.urls
 }
