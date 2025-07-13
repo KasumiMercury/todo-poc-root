@@ -31,7 +31,8 @@ locals {
     "roles/run.developer",
     "roles/iam.serviceAccountUser",
   ]
-  repo_name = "KasumiMercury/todo-server-poc-go"
+  repo_owner = "KasumiMercury"
+  repo_name = "todo-server-poc-go"
 }
 
 resource "google_project_service" "default" {
@@ -52,6 +53,8 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-provider"
   display_name                       = "GitHub Provider"
+  
+  attribute_condition                = "assertion.repository_owner == \"${local.repo_owner}\""
 
   attribute_mapping = {
     "google.subject"       = "assertion.sub"
@@ -67,7 +70,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 resource "google_service_account_iam_member" "github-account-iam" {
   service_account_id = google_service_account.terraform-test.id
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo_name}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo_owner}/${local.repo_name}"
 }
 
 resource "google_project_iam_member" "service_account" {
