@@ -3,3 +3,9 @@ variable "project_id" {
   type        = string
   default     = null
 }
+
+variable "location" {
+  description = "The location where Cloud Run services will be deployed."
+  type        = string
+  default     = ""
+}

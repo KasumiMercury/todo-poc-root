@@ -28,7 +28,10 @@ provider "cloudflare" {
   # token pulled from $CLOUDFLARE_API_TOKEN
 }
 
-provider "google" {}
+provider "google" {
+    project = var.project_id
+    region  = var.location
+}
 
 resource "google_project_service" "artifactregistry" {
   project = var.project_id

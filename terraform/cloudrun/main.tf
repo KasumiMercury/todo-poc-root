@@ -28,7 +28,10 @@ provider "cloudflare" {
   # token pulled from $CLOUDFLARE_API_TOKEN
 }
 
-provider "google" {}
+provider "google" {
+  project = var.project_id
+  region  = var.location
+}
 
 resource "google_cloud_run_v2_service" "default" {
   name     = "todo-poc-cloud-run"
