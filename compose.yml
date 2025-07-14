@@ -34,6 +34,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
+      - API_BASE_URL=http://server:8080
     working_dir: /app
     depends_on:
       - server

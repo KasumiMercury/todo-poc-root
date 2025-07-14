@@ -39,6 +39,7 @@ services:
       - server
     environment:
       - NODE_ENV=production
+      - API_BASE_URL=http://server:8080
     networks:
       - app-network
 
