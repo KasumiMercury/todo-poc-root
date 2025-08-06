@@ -48,7 +48,7 @@ resource "google_service_account" "terraform-test" {
 }
 
 resource "google_iam_workload_identity_pool" "github" {
-  workload_identity_pool_id = "github"
+  workload_identity_pool_id = "github-pool"
   display_name              = "GitHub Workload Identity Pool"
 }
 
