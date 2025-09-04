@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.13"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 7.1"
+    }
+  }
+}
+
 resource "google_cloud_run_v2_service" "default" {
   name     = var.service_name
   location = var.location
