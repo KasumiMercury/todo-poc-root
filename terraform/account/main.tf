@@ -42,13 +42,13 @@ resource "google_project_service" "iamcredentials" {
   service = "iamcredentials.googleapis.com"
 }
 
-resource "google_service_account" "terraform-test" {
+resource "google_service_account" "terraform" {
   account_id   = "todo-poc-terraform"
   display_name = "todo-poc-terraform-service-account"
 }
 
 resource "google_iam_workload_identity_pool" "github" {
-  workload_identity_pool_id = "github-pool"
+  workload_identity_pool_id = "github"
   display_name              = "GitHub Workload Identity Pool"
 }
 
@@ -71,13 +71,25 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 }
 
 resource "google_service_account_iam_member" "github-account-iam" {
-  service_account_id = google_service_account.terraform-test.id
+  service_account_id = google_service_account.terraform.id
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${local.repo_owner}/${local.repo_name}"
 }
 
+resource "google_project_iam_member" "terraform_artifactregistry_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.terraform.email}"
+}
+
+resource "google_project_iam_member" "terraform_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.terraform.email}"
+}
+
 output "service_account_github_actions_email" {
-  value       = google_service_account.terraform-test.email
+  value       = google_service_account.terraform.email
 }
 
 output "google_iam_workload_identity_pool_provider_github_name" {
