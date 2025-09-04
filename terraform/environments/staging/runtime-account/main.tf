@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.11"
+  required_version = ">= 1.13"
   backend "s3" {
     bucket                      = "terraform"
     key                         = "todo-poc/environments/staging/runtime-account/terraform.tfstate"
@@ -19,7 +19,7 @@ terraform {
     }
     google = {
       source  = "hashicorp/google"
-      version = "~> 6.0"
+      version = "~> 7.1"
     }
   }
 }
