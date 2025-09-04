@@ -52,9 +52,13 @@ module "deployment_service_account" {
   
   roles = [
     "roles/run.admin",
-    "roles/iam.serviceAccountUser",
     "roles/artifactregistry.reader",
     "roles/compute.networkUser"
+  ]
+  
+  service_account_impersonation_targets = [
+    "projects/${var.project_id}/serviceAccounts/todo-poc-runtime@${var.project_id}.iam.gserviceaccount.com",
+    "projects/${var.project_id}/serviceAccounts/todo-poc-runtime-staging@${var.project_id}.iam.gserviceaccount.com"
   ]
 }
 
