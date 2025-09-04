@@ -1,8 +1,8 @@
 terraform {
-  required_version = ">= 1.11"
+  required_version = ">= 1.13"
   backend "s3" {
     bucket                      = "terraform"
-    key                         = "todo-poc/registry/terraform.tfstate"
+    key                         = "todo-poc/shared/artifact-registry/terraform.tfstate"
     region                      = "auto"
     skip_credentials_validation = true
     skip_metadata_api_check     = true
@@ -19,7 +19,7 @@ terraform {
     }
     google = {
       source  = "hashicorp/google"
-      version = "~> 6.0"
+      version = "~> 7.1"
     }
   }
 }
