@@ -23,11 +23,11 @@ terraform/
 
 ## デプロイ手順
 
-### 1. 共通リソースの作成（初回のみ）
+### 1. 共通基盤の作成（deployment-account除く）
 
 #### 1.1. CI/CDアカウント作成（外部リポジトリのビルド・プッシュ用）
 ```bash
-cd shared/ci-cd-account
+cd terraform/shared/ci-cd-account
 terraform init
 terraform plan
 terraform apply
@@ -45,9 +45,29 @@ terraform plan
 terraform apply
 ```
 
-#### 1.3. デプロイ用アカウント作成（このリポジトリのGitHub Actionsデプロイ用）
+### 2. 各環境のランタイムアカウント作成
+
+#### 2.1. Production環境ランタイムアカウント（deployment-accountの依存関係）
 ```bash
-cd ../deployment-account
+cd ../../environments/production/runtime-account
+terraform init
+terraform plan
+terraform apply
+```
+
+#### 2.2. Staging環境ランタイムアカウント（deployment-accountの依存関係）
+```bash
+cd ../../staging/runtime-account
+terraform init
+terraform plan
+terraform apply
+```
+
+### 3. デプロイ用アカウント作成
+
+#### 3.1. デプロイ用アカウント作成（このリポジトリのGitHub Actionsデプロイ用）
+```bash
+cd ../../../shared/deployment-account
 terraform init
 terraform plan
 terraform apply
@@ -57,44 +77,50 @@ terraform apply
 - `deployment_service_account_email`: GitHub Secretsに設定（このリポジトリ用）
 - `workload_identity_pool_provider`: GitHub Secretsに設定（このリポジトリ用）
 
-### 2. 環境固有リソースの作成
+### 4. Cloud Runデプロイメント
 
-#### 2.1. Production環境
+runtime-accountが作成済みであることが前提条件
+
+#### 4.1. Production環境
 ```bash
-# ランタイムアカウント作成
-cd ../../environments/production/runtime-account
-terraform init
-terraform plan
-terraform apply
-
-# Cloud Runデプロイ（手動実行の場合）
-cd ../cloud-run-deploy
+cd terraform/environments/production/cloud-run-deploy
 terraform init
 terraform plan -var="image_tag=v1.2.3"
 terraform apply
 ```
 
-#### 2.2. Staging環境
+#### 4.2. Staging環境
 ```bash
-# ランタイムアカウント作成
-cd ../../staging/runtime-account
-terraform init
-terraform plan
-terraform apply
-
-# Cloud Runデプロイ（手動実行の場合）
-cd ../cloud-run-deploy
+cd ../../staging/cloud-run-deploy
 terraform init
 terraform plan -var="image_tag=v1.2.3-rc.1"
 terraform apply
 ```
 
-### 3. 新環境の追加手順
+### 5. 新環境の追加手順
+
+新しい環境を追加する際はdeployment-accountの更新が必要
 
 新しい環境（例：development）を追加する場合：
 1. `environments/development/` ディレクトリを作成
 2. `staging/` の設定をコピーして環境名を調整
-3. terraform apply で環境を作成
+3. 新環境のruntime-accountを作成：
+   ```bash
+   cd terraform/environments/development/runtime-account
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+4. deployment-accountを更新して新環境のサービスアカウントを追加：
+   - `terraform/shared/deployment-account/main.tf` の `service_account_impersonation_targets` に新しいサービスアカウントを追加
+   - `terraform apply` を実行
+5. **新環境のcloud-run-deployを作成：**
+   ```bash
+   cd ../cloud-run-deploy
+   terraform init
+   terraform plan -var="image_tag=version"
+   terraform apply
+   ```
 
 ## GitHub Actions設定
 
@@ -138,27 +164,30 @@ CI/CDアカウント作成後、外部リポジトリで以下をGitHub Secrets�
 
 ```bash
 # 本番環境デプロイ（サービス名: todo-poc-cloud-run-prod）
-cd environments/production/cloud-run-deploy
+cd terraform/environments/production/cloud-run-deploy
 terraform apply -var="image_tag=v1.2.3"
 
 # ステージング環境デプロイ（サービス名: todo-poc-cloud-run-staging）
-cd environments/staging/cloud-run-deploy  
+cd ../../staging/cloud-run-deploy  
 terraform apply -var="image_tag=v1.2.3-rc.1"
 ```
 
-## サービスアカウント
+## サービスアカウントアーキテクチャ
 
 ### 1. CI/CDサービスアカウント (`todo-poc-ci-cd`)
-- 用途: 外部リポジトリでのDockerコンテナビルド・プッシュ
-- 使用場所: 別リポジトリのGitHub Actions
+- 用途: 外部リポジトリからのDockerコンテナビルド・プッシュ操作
+- 使用場所: 別の実装リポジトリのGitHub Actions
+- 作成箇所: `terraform/shared/ci-cd-account/`
 
 ### 2. デプロイサービスアカウント (`todo-poc-deployment`)
-- 用途: このリポジトリからのCloud Runデプロイ
-- 使用場所: このリポジトリのGitHub Actions
+- 用途: このインフラストラクチャリポジトリからのCloud Runデプロイ操作
+- 使用場所: このリポジトリの"Deploy to Cloud Run"ワークフロー
+- 作成箇所: `terraform/shared/deployment-account/`
 
-### 3. ランタイムサービスアカウント (環境別)
-- 用途: Cloud Runサービスの実行時認証
-- 使用場所: Cloud Runサービスに割り当て
+### 3. ランタイムサービスアカウント（環境固有）
+- 用途: Cloud Runサービスの実行時認証とGCPリソースアクセス
+- 使用場所: デプロイされたCloud Runサービスのランタイム操作に割り当て
+- 作成箇所: `terraform/environments/{env}/runtime-account/`
 
 ### 環境固有設定オプション
 
