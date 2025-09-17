@@ -76,26 +76,6 @@ resource "google_project_service" "iamcredentials" {
   service = "iamcredentials.googleapis.com"
 }
 
-moved {
-  from = module.ci_cd_service_account
-  to   = module.ci_cd_service_accounts["task-api"]
-}
-
-moved {
-  from = module.workload_identity.google_iam_workload_identity_pool.github
-  to   = google_iam_workload_identity_pool.github_ci_cd["github-ci-cd"]
-}
-
-moved {
-  from = module.workload_identity.google_iam_workload_identity_pool_provider.github
-  to   = google_iam_workload_identity_pool_provider.github_ci_cd["task-api"]
-}
-
-moved {
-  from = module.workload_identity.google_service_account_iam_member.workload_identity_user
-  to   = google_service_account_iam_member.ci_cd_workload_identity_user["task-api"]
-}
-
 module "ci_cd_service_accounts" {
   for_each = local.ci_cd_services
 
