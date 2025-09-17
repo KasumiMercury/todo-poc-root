@@ -8,3 +8,9 @@ variable "location" {
   type        = string
   default     = "asia-northeast1"
 }
+
+variable "environments" {
+  description = "Environments whose runtime service accounts should be impersonated"
+  type        = list(string)
+  default     = ["production", "staging"]
+}

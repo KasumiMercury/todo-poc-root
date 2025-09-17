@@ -12,3 +12,8 @@ output "workload_identity_pool_provider" {
   description = "Workload Identity Pool Provider for GitHub Actions"
   value       = module.deployment_workload_identity.workload_identity_pool_provider_name
 }
+
+output "service_account_impersonation_targets" {
+  description = "Service accounts the deployment identity may impersonate"
+  value       = local.service_account_impersonation_targets
+}
