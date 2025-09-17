@@ -29,8 +29,8 @@ provider "cloudflare" {
 }
 
 provider "google" {
-    project = var.project_id
-    region  = var.location
+  project = var.project_id
+  region  = var.location
 }
 
 resource "google_project_service" "artifactregistry" {
@@ -44,4 +44,12 @@ resource "google_artifact_registry_repository" "app_repo" {
   description   = "Repository for Todo POC"
   format        = "DOCKER"
   mode          = "STANDARD_REPOSITORY"
+}
+
+resource "google_artifact_registry_repository_iam_member" "public_reader" {
+  project    = var.project_id
+  location   = var.location
+  repository = google_artifact_registry_repository.app_repo.repository_id
+  role       = "roles/artifactregistry.reader"
+  member     = "allUsers"
 }
