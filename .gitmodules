@@ -1,6 +1,0 @@
-[submodule "client"]
-	path = client
-	url = https://github.com/KasumiMercury/todo-client-poc-rr.git
-[submodule "server"]
-	path = server
-	url = https://github.com/KasumiMercury/todo-server-poc-go.git
