@@ -32,6 +32,9 @@ Session.vim
 
 # Local tfvars terraform.tfvars
 **/*.tfvars
+**/*.auto.tfvars
+**/*.auto.tfvars.hcl
+**/*.auto.tfvars.json
 
 # tf lock file
 **/.terraform.lock.hcl
@@ -82,3 +85,6 @@ helpers/foundation-deployer/.steps.json
 
 # Go multi-module workspace sum
 go.work.sum
+
+# Allow tfvars files
+!*config.auto.tfvars.json
