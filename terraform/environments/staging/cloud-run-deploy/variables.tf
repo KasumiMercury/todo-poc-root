@@ -8,25 +8,19 @@ variable "location" {
   type        = string
 }
 
-variable "image_tag" {
-  description = "The tag of the container image to deploy to Cloud Run (e.g., v1.2.3)"
+variable "environment" {
+  description = "Identifier for this environment (e.g., staging)."
   type        = string
+  default     = "staging"
 }
 
-variable "environment_variables" {
-  description = "Environment variables to set in the container"
-  type        = map(string)
-  default     = {}
-}
-
-variable "allow_unauthenticated_access" {
-  description = "Whether to allow unauthenticated access to the service"
-  type        = bool
-  default     = false
-}
-
-variable "deletion_protection" {
-  description = "Whether to enable deletion protection"
-  type        = bool
-  default     = false
+variable "service_config" {
+  description = "Per-service deployment configuration keyed by service identifier"
+  type = map(object({
+    image_tag                    = optional(string)
+    environment_variables        = optional(map(string), {})
+    allow_unauthenticated_access = optional(bool)
+    deletion_protection          = optional(bool)
+    skip                         = optional(bool, false)
+  }))
 }

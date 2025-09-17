@@ -1,17 +1,14 @@
-output "cloud_run_urls" {
-  description = "The URLs of the deployed Cloud Run service"
-  value       = module.cloud_run_service.urls
-  sensitive   = true
-}
-
-output "cloud_run_service_url" {
-  description = "The primary URL of the deployed Cloud Run service"
-  value       = module.cloud_run_service.service_url
-  sensitive   = true
-}
-
-output "cloud_run_service_name" {
-  description = "The name of the deployed Cloud Run service"
-  value       = module.cloud_run_service.service_name
-  sensitive   = true
+output "services" {
+  description = "Per-service deployment outputs"
+  value = {
+    for service_id in keys(module.cloud_run_services) :
+    service_id => {
+      service_name = module.cloud_run_services[service_id].service_name
+      service_url  = module.cloud_run_services[service_id].service_url
+      urls         = module.cloud_run_services[service_id].urls
+      location     = module.cloud_run_services[service_id].location
+      service_id   = module.cloud_run_services[service_id].service_id
+    }
+  }
+  sensitive = true
 }

@@ -1,0 +1,10 @@
+{
+  "service_config": {
+    "task-api": {
+      "image_tag": "v1.2.3"
+    },
+    "id-api": {
+      "skip": true
+    }
+  }
+}
