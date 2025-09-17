@@ -1,0 +1,54 @@
+{
+  "services": {
+    "task-api": {
+      "display_name": "Task API",
+      "artifact": {
+        "image": "task-api"
+      },
+      "build": {
+        "repository": {
+          "owner": "KasumiMercury",
+          "name": "todo-server-poc-go"
+        },
+        "service_account": {
+          "account_id": "todo-poc-task-api-ci",
+          "display_name": "Todo POC Task API CI Service Account",
+          "description": "Service account for Task API GitHub Actions pipeline",
+          "roles": [
+            "roles/artifactregistry.writer",
+            "roles/storage.admin"
+          ]
+        },
+        "workload_identity": {
+          "pool_id": "github-ci-cd",
+          "provider_id": "github-provider-task-api"
+        }
+      }
+    },
+    "id-api": {
+      "display_name": "ID API",
+      "artifact": {
+        "image": "id-api"
+      },
+      "build": {
+        "repository": {
+          "owner": "usbharu",
+          "name": "todo-user"
+        },
+        "service_account": {
+          "account_id": "todo-poc-id-api-ci",
+          "display_name": "Todo POC ID API CI Service Account",
+          "description": "Service account for ID API GitHub Actions pipeline",
+          "roles": [
+            "roles/artifactregistry.writer",
+            "roles/storage.admin"
+          ]
+        },
+        "workload_identity": {
+          "pool_id": "github-ci-cd",
+          "provider_id": "github-provider-id-api"
+        }
+      }
+    }
+  }
+}
