@@ -33,11 +33,6 @@ provider "google" {
   region  = var.location
 }
 
-moved {
-  from = module.runtime_service_account
-  to   = module.runtime_service_accounts["task-api"]
-}
-
 locals {
   repo_root       = abspath("${path.module}/../../..")
   service_catalog = jsondecode(file("${local.repo_root}/service_catalog.json"))
