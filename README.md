@@ -11,15 +11,28 @@ terraform/
 ├── shared/                           # 環境共通リソース
 │   ├── ci-cd-account/               # CI/CD用アカウント（外部リポジトリのビルド・プッシュ用）
 │   ├── artifact-registry/           # Artifact Registry（全環境共通）
-│   └── deployment-account/          # [NEW] デプロイ用アカウント（GitHub Actionsデプロイ用）
+│   └── deployment-account/          # デプロイ用アカウント（GitHub Actionsデプロイ用）
 └── environments/                     # 環境別設定
     ├── production/                   # 本番環境
     │   ├── runtime-account/          # 本番環境用ランタイムアカウント
     │   └── cloud-run-deploy/        # 本番環境用Cloud Runデプロイ設定
     └── staging/                      # ステージング環境
         ├── runtime-account/          # ステージング環境用ランタイムアカウント
-        └── cloud-run-deploy/        # ステージング環境用Cloud Runデプロイ設定
+    └── cloud-run-deploy/        # ステージング環境用Cloud Runデプロイ設定
 ```
+
+### サービスカタログ
+
+`terraform/service_catalog.json`
+
+サービス構成についての設定を集約
+
+各サービスには以下の情報をもつ：
+
+- Artifact Registry で利用するイメージ名（1 リポジトリ内でサービス名ごとにパッケージ分割）
+- CI/CD 用サービスアカウントと Workload Identity 設定（ビルドリポジトリ単位）
+- 環境別のランタイムサービスアカウントと Cloud Run サービス名
+- ロール/オプション
 
 ## デプロイ手順
 
@@ -34,8 +47,12 @@ terraform apply
 ```
 
 出力:
-- `service_account_github_actions_email`: GitHub Secretsに設定（実装リポジトリ用）
-- `google_iam_workload_identity_pool_provider_github_name`: GitHub Secretsに設定（実装リポジトリ用）
+- `service_accounts`: サービスIDごとにCI/CD用サービスアカウントの`email` / `name` / `id`を返すマップ
+
+    各実装リポジトリに`service_accounts["task-api"].email`を設定
+- `workload_identity_providers`: サービスIDごとにWorkload Identity Provider情報（`name` / `pool_name` / `provider_id` / `workload_identity_pool_id`）を返すマップ
+    
+    GitHub ActionsのOIDCフェデレーション設定に利用し、Secretsには`workload_identity_providers["task-api"].name`を設定
 
 #### 1.2. Artifact Registry作成（全環境共通）
 ```bash
@@ -44,6 +61,8 @@ terraform init
 terraform plan
 terraform apply
 ```
+
+**作成される `todo-poc-repo` には `roles/artifactregistry.reader` を `allUsers` に付与**
 
 ### 2. 各環境のランタイムアカウント作成
 
@@ -85,41 +104,52 @@ runtime-accountが作成済みであることが前提条件
 ```bash
 cd terraform/environments/production/cloud-run-deploy
 terraform init
-terraform plan -var="image_tag=v1.2.3"
-terraform apply
+
+cp config.example.json config.auto.tfvars.json
+
+terraform plan -var-file="config.auto.tfvars.json"
+terraform apply -var-file="config.auto.tfvars.json"
+```
+
+```bash
+terraform plan \
+  -var='service_config={
+    "task-api" = { image_tag = "v1.2.3" }
+    "id-api"   = { image_tag = "v0.3.0" }
+  }'
 ```
 
 #### 4.2. Staging環境
 ```bash
 cd ../../staging/cloud-run-deploy
 terraform init
-terraform plan -var="image_tag=v1.2.3-rc.1"
-terraform apply
+cp config.example.json config.auto.tfvars.json
+terraform plan -var-file="config.auto.tfvars.json"
+terraform apply -var-file="config.auto.tfvars.json"
 ```
 
 ### 5. 新環境の追加手順
 
-新しい環境を追加する際はdeployment-accountの更新が必要
+新しい環境を追加する場合は、サービスカタログと shared/deployment-account の環境リストを更新
 
-新しい環境（例：development）を追加する場合：
-1. `environments/development/` ディレクトリを作成
-2. `staging/` の設定をコピーして環境名を調整
-3. 新環境のruntime-accountを作成：
+1. `terraform/service_catalog.json` に新しい環境 (`runtime.service_accounts.<env>`, `deploy.cloud_run.<env>`) を追記
+2. `terraform/environments/development/` のように新しいディレクトリを作成し、`staging/` の設定をコピーした上で `variables.tf` の `environment` デフォルト値を更新
+3. 新環境の runtime アカウントをデプロイ：
    ```bash
    cd terraform/environments/development/runtime-account
    terraform init
    terraform plan
    terraform apply
    ```
-4. deployment-accountを更新して新環境のサービスアカウントを追加：
-   - `terraform/shared/deployment-account/main.tf` の `service_account_impersonation_targets` に新しいサービスアカウントを追加
-   - `terraform apply` を実行
-5. **新環境のcloud-run-deployを作成：**
+4. `terraform/shared/deployment-account/variables.tf` の `environments` に新しい環境名を追加して `terraform apply`
+    これでデプロイ SA の `service_account_impersonation_targets` が自動的に拡張
+5. **新環境の cloud-run-deploy を実行：**
    ```bash
    cd ../cloud-run-deploy
    terraform init
-   terraform plan -var="image_tag=version"
-   terraform apply
+   cp config.example.json config.auto.tfvars.json
+   terraform plan -var-file="config.auto.tfvars.json"
+   terraform apply -var-file="config.auto.tfvars.json"
    ```
 
 ## GitHub Actions設定
@@ -145,14 +175,17 @@ terraform output -json
 
 ### CI/CD用GitHub Secrets（外部リポジトリ用）
 
-CI/CDアカウント作成後、外部リポジトリで以下をGitHub Secretsに設定：
-
-- `GOOGLE_IAM_WORKLOAD_IDENTITY_POOL_PROVIDER`: 
-  `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-ci-cd/providers/github-provider`
-- `SERVICE_ACCOUNT_EMAIL`: 
-  `todo-poc-ci-cd@PROJECT_ID.iam.gserviceaccount.com`
+- `GOOGLE_IAM_WORKLOAD_IDENTITY_POOL_PROVIDER`: `terraform output -json workload_identity_providers` の `<service>.name`
+- `SERVICE_ACCOUNT_EMAIL`: `terraform output -json service_accounts` の `<service>.email`
 - `GCP_PROJECT_ID`: プロジェクトID
 - `GCP_ARTIFACT_REPO_ID`: `todo-poc-repo`
+
+例（`task-api` の場合）
+
+```bash
+terraform output -json workload_identity_providers | jq -r '."task-api".name'
+terraform output -json service_accounts | jq -r '."task-api".email'
+```
 
 ## デプロイ方法
 
@@ -163,38 +196,47 @@ CI/CDアカウント作成後、外部リポジトリで以下をGitHub Secrets�
 ### Option 2: 手動デプロイ
 
 ```bash
-# 本番環境デプロイ（サービス名: todo-poc-cloud-run-prod）
+# 本番環境デプロイ
 cd terraform/environments/production/cloud-run-deploy
-terraform apply -var="image_tag=v1.2.3"
+terraform apply -var-file="service_config.auto.tfvars.json"
 
-# ステージング環境デプロイ（サービス名: todo-poc-cloud-run-staging）
+# ステージング環境デプロイ
 cd ../../staging/cloud-run-deploy  
-terraform apply -var="image_tag=v1.2.3-rc.1"
+terraform apply -var-file="service_config.auto.tfvars.json"
 ```
 
 ## サービスアカウントアーキテクチャ
 
-### 1. CI/CDサービスアカウント (`todo-poc-ci-cd`)
-- 用途: 外部リポジトリからのDockerコンテナビルド・プッシュ操作
-- 使用場所: 別の実装リポジトリのGitHub Actions
-- 作成箇所: `terraform/shared/ci-cd-account/`
+### 1. CI/CDサービスアカウント（サービス別）
+- `todo-poc-task-api-ci`: `KasumiMercury/todo-server-poc-go` 向け
+    Artifact Registry への push 権限
+- `todo-poc-id-api-ci`: `usbharu/todo-user` 向け
+    Artifact Registry への push 権限
+- 作成箇所: `terraform/shared/ci-cd-account/`（サービスカタログから自動生成）
 
 ### 2. デプロイサービスアカウント (`todo-poc-deployment`)
 - 用途: このインフラストラクチャリポジトリからのCloud Runデプロイ操作
 - 使用場所: このリポジトリの"Deploy to Cloud Run"ワークフロー
 - 作成箇所: `terraform/shared/deployment-account/`
 
-### 3. ランタイムサービスアカウント（環境固有）
-- 用途: Cloud Runサービスの実行時認証とGCPリソースアクセス
-- 使用場所: デプロイされたCloud Runサービスのランタイム操作に割り当て
+### 3. ランタイムサービスアカウント（サービス × 環境）
+- 例: `todo-poc-task-api-runtime`（Task API 本番）、`todo-poc-id-api-runtime`（ID API 本番）など
+- 用途: Cloud Run サービスの実行時認証と GCP リソースアクセス
 - 作成箇所: `terraform/environments/{env}/runtime-account/`
 
 ### 環境固有設定オプション
 
 ```bash
 terraform apply \
-  -var="image_tag=v1.2.3" \
-  -var="environment_variables={DEBUG=true,LOG_LEVEL=info}" \
-  -var="allow_unauthenticated_access=false" \
-  -var="deletion_protection=true"
+  -var='service_config={
+    "task-api" = {
+      image_tag             = "v1.2.3"
+      environment_variables = { DEBUG = true, LOG_LEVEL = "info" }
+    }
+    "id-api" = {
+      image_tag                  = "v0.3.0"
+      allow_unauthenticated_access = false
+      deletion_protection           = true
+    }
+  }'
 ```
