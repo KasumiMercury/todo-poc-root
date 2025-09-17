@@ -20,7 +20,7 @@ resource "google_project_iam_member" "roles" {
     for role in var.roles : role
     if role != "roles/iam.serviceAccountUser"
   ])
-  
+
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.main.email}"
@@ -28,7 +28,7 @@ resource "google_project_iam_member" "roles" {
 
 resource "google_service_account_iam_member" "impersonation" {
   for_each = toset(var.service_account_impersonation_targets)
-  
+
   service_account_id = each.key
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.main.email}"
