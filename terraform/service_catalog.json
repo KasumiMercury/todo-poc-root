@@ -23,6 +23,36 @@
           "pool_id": "github-ci-cd",
           "provider_id": "github-provider-task-api"
         }
+      },
+      "runtime": {
+        "service_accounts": {
+          "production": {
+            "account_id": "task-api-runtime",
+            "display_name": "Todo POC Task API Runtime Service Account",
+            "description": "Runtime service account for Task API (production)",
+            "roles": []
+          },
+          "staging": {
+            "account_id": "task-api-runtime-staging",
+            "display_name": "Todo POC Task API Runtime Service Account (Staging)",
+            "description": "Runtime service account for Task API (staging)",
+            "roles": []
+          }
+        }
+      },
+      "deploy": {
+        "cloud_run": {
+          "production": {
+            "service_name": "todo-poc-task-api-prod"
+          },
+          "staging": {
+            "service_name": "todo-poc-task-api-staging"
+          }
+        },
+        "defaults": {
+          "allow_unauthenticated_access": false,
+          "deletion_protection": true
+        }
       }
     },
     "id-api": {
@@ -47,6 +77,36 @@
         "workload_identity": {
           "pool_id": "github-ci-cd",
           "provider_id": "github-provider-id-api"
+        }
+      },
+      "runtime": {
+        "service_accounts": {
+          "production": {
+            "account_id": "id-api-runtime",
+            "display_name": "Todo POC ID API Runtime Service Account",
+            "description": "Runtime service account for ID API (production)",
+            "roles": []
+          },
+          "staging": {
+            "account_id": "id-api-runtime-staging",
+            "display_name": "Todo POC ID API Runtime Service Account (Staging)",
+            "description": "Runtime service account for ID API (staging)",
+            "roles": []
+          }
+        }
+      },
+      "deploy": {
+        "cloud_run": {
+          "production": {
+            "service_name": "todo-poc-id-api-prod"
+          },
+          "staging": {
+            "service_name": "todo-poc-id-api-staging"
+          }
+        },
+        "defaults": {
+          "allow_unauthenticated_access": false,
+          "deletion_protection": true
         }
       }
     }

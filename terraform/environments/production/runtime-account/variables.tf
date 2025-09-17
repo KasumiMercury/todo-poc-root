@@ -7,3 +7,9 @@ variable "location" {
   description = "The location where Cloud Run services will be deployed."
   type        = string
 }
+
+variable "environment" {
+  description = "Identifier for this environment (e.g., production)."
+  type        = string
+  default     = "production"
+}
