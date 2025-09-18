@@ -1,3 +1,33 @@
+# Migration Integration Workflow
+
+外部リポジトリが発行するマイグレーション SQL を PR で `db/<service>/`（例: `db/task`）に追加することで、 `db/integrated` 配下へ集約
+
+## 開発フロー
+
+- マイグレーションは各開発リポジトリで作成し、このリポジトリの `db/<service>/` へコピーする形で PR を作成
+- 同一 PR 内で元ファイルを再編集した場合でも、内容が変われば再統合と lint が走る
+- `db/integrated.json` に記録済みのマイグレーションは「実行済み」と扱う
+    
+    既存ファイル（ステータスが `M` や `R`）を変更・リネームする操作は不正な操作として処理を中断
+    
+    新規追加ファイル（ステータス `A`）であれば、同一 PR 内での再編集は許容されます。
+- 新しいサービスを対象にする場合は `.github/workflows/integration.yml` の `MIGRATION_TARGETS` にディレクトリ・正規表現・説明などを追加
+- `db/integrated` および `db/integrated.json` はワークフローが自動管理
+    
+    **手動での編集や commit は禁止**
+
+## 動作概要
+
+1. `db/**` 配下の SQL ファイルが追加・変更・リネームされると、`Migration Integration` ワークフローが起動
+2. `.github/scripts/run-detect-migrations.sh` が `db/integrated.json` に保存された `source_sha` を参照、未統合または内容が変わったファイルだけを抽出
+3. 同一 PR で複数ディレクトリ（例: `db/task` と `db/user`）のマイグレーションを同時に扱うと不正操作として処理を中断
+4. `build-file-description-mapping.sh` がディレクトリ固有の命名規則からマイグレーション名を取得、`process-integrated-migrations.sh` が Atlas を用いて統合ファイルを生成または再利用
+
+    結果と元ファイルの SHA は `db/integrated.json` に記録される
+5. 生成直後に `atlas migrate lint --git-dir db/integrated` を実行し、成功した場合のみ `db/integrated` と `db/integrated.json` をコミット・プッシュ
+6. `generate-migration-summary.sh` が統合結果の一覧を作成し、PR へ表形式でコメント投稿
+
+
 # Todo POC Terraform Infrastructure
 
 ## ディレクトリ構造
