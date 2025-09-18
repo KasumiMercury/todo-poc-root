@@ -63,7 +63,7 @@ main() {
     local sorted_targets=()
     readarray -t sorted_targets < <(printf '%s\n' "${!affected_targets_map[@]}" | sort)
 
-    printf '%s\n' "${sorted_targets[@]}" | jq -R '.' | jq -s '.'
+    printf '%s\n' "${sorted_targets[@]}" | jq -R '.' | jq -s -c '.'
 }
 
 # Handle help option

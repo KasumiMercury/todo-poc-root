@@ -85,7 +85,7 @@ main() {
         return 0
     fi
 
-    printf '%s\n' "${descriptions[@]}" | jq -R '.' | jq -s '.'
+    printf '%s\n' "${descriptions[@]}" | jq -R '.' | jq -s -c '.'
 }
 
 main "$@"
