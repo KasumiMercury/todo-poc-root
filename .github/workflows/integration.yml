@@ -12,7 +12,7 @@ env:
       "user": {
         "name": "user",
         "directory": "db/user",
-        "pattern": "^V[0-9]+__(.+)\\\\.sql$",
+        "pattern": "^V[0-9]+__(.+)\\.sql$",
         "description": "user server migrations"
       },
       "task": {
@@ -22,6 +22,8 @@ env:
         "description": "task server migrations"
       }
     }
+  INTEGRATED_JSON_PATH: db/integrated.json
+  INTEGRATED_DIR: db/integrated
 
 jobs:
   check-migrations:
@@ -33,124 +35,43 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-      
+
       - name: Detect migration changes
         id: detect-changes
-        run: |
-          echo "Detecting all added SQL files..."
-          all_added_sql_files=$(git diff --name-only --diff-filter=A "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" | grep '\.sql$' || true)
-          
-          if [ -z "$all_added_sql_files" ]; then
-            echo "No SQL files were added in this pull request."
-            {
-              echo "changed_targets_count=0"
-              echo "changed_targets_config={}"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          
-          echo "Found SQL files:"
-          echo "$all_added_sql_files"
-
-          integrated_json="integrated.json"
-          if [ -f "$integrated_json" ]; then
-            already_integrated=$(jq -r 'keys[]' "$integrated_json")
-            filtered_sql_files=$(echo "$all_added_sql_files" | grep -v -F -f <(echo "$already_integrated") || true)
-          else
-            filtered_sql_files="$all_added_sql_files"
-          fi
-
-          if [ -z "$filtered_sql_files" ]; then
-            echo "All detected SQL files are already integrated."
-            {
-              echo "changed_targets_count=0"
-              echo "changed_targets_config={}"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          chmod +x .github/scripts/detect-migration-targets.sh
-          affected_targets_array=$(echo "$filtered_sql_files" | tr '\n' ' ' | xargs ./.github/scripts/detect-migration-targets.sh "$MIGRATION_TARGETS")
-          
-          echo "Affected targets: $affected_targets_array"
-          
-          changed_targets_json=$(echo "$affected_targets_array" | jq -r '.[]' | while read -r target_key; do
-
-            target_config=$(echo "$MIGRATION_TARGETS" | jq -r ".$target_key")
-            target_dir=$(echo "$target_config" | jq -r '.directory')
-            
-            files_for_target=$(echo "$filtered_sql_files" | grep "^$target_dir/")
-            target_files_array=$(echo "$files_for_target" | jq -R '.' | jq -s '.')
-            
-            echo "$target_config" | jq --arg key "$target_key" --argjson files "$target_files_array" '
-              {($key): (. + {files: $files})}
-            '
-          done | jq -s 'add // {}')
-          
-          changed_count=$(echo "$changed_targets_json" | jq 'length')
-          
-          {
-            echo "changed_targets_count=$changed_count"
-            echo "changed_targets_config<<EOF"
-            echo "$changed_targets_json"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/run-detect-migrations.sh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
       - name: Mixed target changes detected
         if: steps.detect-changes.outputs.changed_targets_count > 1
         run: |
           echo "::error::Mixed migration target changes detected - cannot process multiple targets."
           exit 1
-      
+
       - name: No migration changes found
         if: steps.detect-changes.outputs.changed_targets_count == 0
-        run: |
-          echo "No migration file changes detected."
-          echo "[]"
+        run: echo "No migration file changes detected."
 
       - name: Process migration target changes
         if: steps.detect-changes.outputs.changed_targets_count == 1
         id: process-migrations
-        run: |
-          chmod +x .github/scripts/extract-migration-descriptions.sh
-          
-          changed_targets_config='${{ steps.detect-changes.outputs.changed_targets_config }}'
-          
-          target_key=$(echo "$changed_targets_config" | jq -r 'keys[0]')
-          target_config=$(echo "$changed_targets_config" | jq -r --arg key "$target_key" '.[$key]')
-          
-          target_pattern=$(echo "$target_config" | jq -r '.pattern' | sed 's/\\\\/\\/g')
-          files_array=$(echo "$target_config" | jq -r '.files')
-          
-          file_description_mapping=$(echo "$files_array" | jq -r '.[]' | while read -r file; do
-            description=$(.github/scripts/extract-migration-descriptions.sh "$target_pattern" "$file" | jq -r '.[0]')
-            echo "{\"file\": \"$file\", \"description\": \"$description\"}"
-          done | jq -s '.')
-          
-          echo "File-description mapping:"
-          echo "$file_description_mapping"
-          
-          # Output the final JSON mapping
-          {
-            echo "file_description_mapping<<EOF"
-            echo "$file_description_mapping"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-      
+        run: ./.github/scripts/build-file-description-mapping.sh
+        env:
+          CHANGED_TARGETS_JSON: ${{ steps.detect-changes.outputs.changed_targets_config }}
+
       - name: Output file-description mapping
         if: steps.detect-changes.outputs.changed_targets_count == 1
         run: |
-          file_description_mapping='${{ steps.process-migrations.outputs.file_description_mapping }}'
-          
           echo "Final file-description mapping:"
-          echo "$file_description_mapping"
-  
+          echo "${{ steps.process-migrations.outputs.file_description_mapping }}"
+
   integrate-migrations:
     needs: check-migrations
     runs-on: ubuntu-latest
@@ -160,7 +81,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -173,53 +94,20 @@ jobs:
 
       - name: Process all migrations
         id: process-migrations
-        run: |
-          file_description_mapping='${{ needs.check-migrations.outputs.file_description_mapping }}'
-          
-          echo "$file_description_mapping" | jq -c '.[]' | while read -r entry; do
-            description=$(echo "$entry" | jq -r '.description')
-            file=$(echo "$entry" | jq -r '.file')
-            
-            echo "Processing migration: $description from $file"
-            
-            atlas migrate new "$description" --dir "file://db/integrated"
-            
-            found_file=$(find migrations -type f -name "*${description}*.sql" | head -n 1)
-            if [ -z "$found_file" ]; then
-              echo "::error::Migration file not found for $description."
-              exit 1
-            fi
-            
-            content=$(cat "$file")
-            echo "$content" > "$found_file"
-
-            atlas migrate hash --dir "file://db/integrated"
-            
-            echo "Processed: $description -> $found_file"
-
-            integrated_json="integrated.json"
-            if [ ! -f "$integrated_json" ]; then
-              echo "{}" > "$integrated_json"
-            fi
-            jq --arg file "$file" --arg desc "$description" --arg integrated "$found_file" \
-              '. + {($file | tostring): {"description": $desc, "integrated_file": $integrated}}' \
-              "$integrated_json" > tmp_integrated.json && mv tmp_integrated.json "$integrated_json"
-          done
-          
-          descriptions=$(echo "$file_description_mapping" | jq -r '.[].description' | tr '\n' ', ' | sed 's/,$//')
-          echo "descriptions=$descriptions" >> "$GITHUB_OUTPUT"
+        run: ./.github/scripts/process-integrated-migrations.sh
+        env:
+          FILE_DESCRIPTION_MAPPING: ${{ needs.check-migrations.outputs.file_description_mapping }}
 
       - name: Commit all migration files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add "migrations"
-          git add "integrated.json"
-          
+          git add "$INTEGRATED_DIR"
+          git add "$INTEGRATED_JSON_PATH"
+
           descriptions="${{ steps.process-migrations.outputs.descriptions }}"
-          
           commit_message="Add migration files for: $descriptions"
-          
+
           git commit -m "$commit_message" || echo "Nothing to commit"
           git push
 
@@ -227,9 +115,11 @@ jobs:
     needs: [check-migrations, integrate-migrations]
     runs-on: ubuntu-latest
     if: ${{ needs.check-migrations.outputs.file_description_mapping != '' }}
+
     permissions:
       pull-requests: write
       contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -239,21 +129,9 @@ jobs:
 
       - name: Generate migration summary
         id: summary
-        run: |
-          file_description_mapping='${{ needs.check-migrations.outputs.file_description_mapping }}'
-
-          echo "|Source|Desc|Integrated|" > migration_summary.txt
-          echo "|---|---|---|" >> migration_summary.txt
-          
-          echo "$file_description_mapping" | jq -c '.[]' | while read -r entry; do
-            orig_file=$(echo "$entry" | jq -r '.file')
-            desc=$(echo "$entry" | jq -r '.description')
-            migration_file=$(find migrations -type f -name "*${desc}*.sql" | head -n 1)
-            migration_file=$(basename "$migration_file")
-            echo "|$orig_file|$desc|$migration_file|" >> migration_summary.txt
-          done
-          
-          cat migration_summary.txt
+        run: ./.github/scripts/generate-migration-summary.sh
+        env:
+          FILE_DESCRIPTION_MAPPING: ${{ needs.check-migrations.outputs.file_description_mapping }}
 
       - name: Post summary as PR comment
         env:
@@ -261,7 +139,7 @@ jobs:
         run: |
           pr_number=${{ github.event.pull_request.number }}
           gh pr comment "$pr_number" --body "$(cat migration_summary.txt)"
-  
+
   lint-integrated:
     runs-on: ubuntu-latest
     needs: [check-migrations, integrate-migrations, post-migration-summary]
@@ -269,7 +147,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -279,6 +157,6 @@ jobs:
 
       - name: Setup Atlas
         uses: ariga/setup-atlas@4240bd74ba9f13319a21de2b6e497f2b6d184d76 # v0
-      
+
       - name: Lint Migrations
-        run: atlas migrate lint --dev-url "docker://postgres/17/test" --git-base "origin/main" --git-dir "db/integrated"
+        run: atlas migrate lint --dev-url "docker://postgres/17/test" --git-base "origin/main" --git-dir "$INTEGRATED_DIR"
