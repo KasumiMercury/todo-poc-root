@@ -15,13 +15,13 @@ log() {
 
 log "Detecting all added SQL files..."
 
-mapfile -t all_added_sql_files < <(
-  git diff --name-only --diff-filter=A "${BASE_SHA}..${HEAD_SHA}" \
+mapfile -t changed_sql_files < <(
+  git diff --name-only --diff-filter=AMR "${BASE_SHA}..${HEAD_SHA}" \
     | grep '\\.sql$' || true
 )
 
-if [[ ${#all_added_sql_files[@]} -eq 0 ]]; then
-  log "No SQL files were added in this pull request."
+if [[ ${#changed_sql_files[@]} -eq 0 ]]; then
+  log "No SQL files were added or modified in this pull request."
   {
     echo 'changed_targets_count=0'
     echo 'changed_targets_config={}'
@@ -30,26 +30,38 @@ if [[ ${#all_added_sql_files[@]} -eq 0 ]]; then
 fi
 
 log "Found SQL files:"
-printf '%s\n' "${all_added_sql_files[@]}"
+printf '%s\n' "${changed_sql_files[@]}"
 
 # Remove files that are already tracked in the integrated manifest.
-declare -A integrated_map=()
+declare -A integrated_sha_map=()
 if [[ -f "$INTEGRATED_JSON_PATH" ]]; then
-  while IFS= read -r integrated_file; do
-    integrated_map["$integrated_file"]=1
-  done < <(jq -r 'keys[]' "$INTEGRATED_JSON_PATH")
+  while IFS=$'\t' read -r source_file source_sha; do
+    [[ -z "$source_file" ]] && continue
+    integrated_sha_map["$source_file"]="$source_sha"
+  done < <(jq -r 'to_entries[] | "\(.key)\t\(.value.source_sha // \"\")"' "$INTEGRATED_JSON_PATH")
 fi
 
 filtered_sql_files=()
-for file in "${all_added_sql_files[@]}"; do
-  if [[ -n "${integrated_map[$file]:-}" ]]; then
+for file in "${changed_sql_files[@]}"; do
+  [[ -z "$file" ]] && continue
+  if [[ ! -f "$file" ]]; then
+    # File might have been deleted or renamed; skip.
     continue
   fi
+
+  stored_sha=${integrated_sha_map[$file]:-}
+  if [[ -n "$stored_sha" ]]; then
+    current_sha=$(sha256sum "$file" | awk '{print $1}')
+    if [[ "$stored_sha" == "$current_sha" ]]; then
+      continue
+    fi
+  fi
+
   filtered_sql_files+=("$file")
 done
 
 if [[ ${#filtered_sql_files[@]} -eq 0 ]]; then
-  log "All detected SQL files are already integrated."
+  log "No SQL file changes require integration."
   {
     echo 'changed_targets_count=0'
     echo 'changed_targets_config={}'
