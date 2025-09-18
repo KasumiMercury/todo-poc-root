@@ -23,7 +23,8 @@ main() {
     local regex_pattern=""
     local files=()
     local descriptions=()
-    
+    local has_errors=false
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -45,46 +46,46 @@ main() {
         esac
         shift
     done
-    
+
     if [[ -z "$regex_pattern" ]]; then
         echo "Error: Regex pattern is required" >&2
         usage >&2
         exit 1
     fi
-    
+
     if [[ ${#files[@]} -eq 0 ]]; then
         echo "Error: No files specified" >&2
         usage >&2
         exit 1
     fi
-    
+
     for file in "${files[@]}"; do
         local basename_file
         basename_file=$(basename "$file")
-        
+
         if [[ $basename_file =~ $regex_pattern ]]; then
             if [[ ${#BASH_REMATCH[@]} -gt 1 ]]; then
                 descriptions+=("${BASH_REMATCH[1]}")
             else
-                echo "Warning: Regex pattern '$regex_pattern' does not contain a capture group for file '$file'" >&2
+                echo "Error: Regex pattern '$regex_pattern' does not expose a capture group for file '$file'" >&2
+                has_errors=true
             fi
         else
-            echo "Warning: File '$file' does not match pattern '$regex_pattern'" >&2
+            echo "Error: File '$file' does not match pattern '$regex_pattern'" >&2
+            has_errors=true
         fi
     done
-    
-    if [[ ${#descriptions[@]} -gt 0 ]]; then
-        printf '['
-        for i in "${!descriptions[@]}"; do
-            if [[ $i -gt 0 ]]; then
-                printf ','
-            fi
-            printf '"%s"' "${descriptions[$i]}"
-        done
-        printf ']\n'
-    else
-        printf '[]\n'
+
+    if [[ "$has_errors" == true ]]; then
+        exit 1
     fi
+
+    if [[ ${#descriptions[@]} -eq 0 ]]; then
+        jq -n '[]'
+        return 0
+    fi
+
+    printf '%s\n' "${descriptions[@]}" | jq -R '.' | jq -s '.'
 }
 
 main "$@"
