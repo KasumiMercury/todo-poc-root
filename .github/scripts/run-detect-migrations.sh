@@ -15,10 +15,30 @@ log() {
 
 log "Detecting all added SQL files..."
 
-mapfile -t changed_sql_files < <(
-  git diff --name-only --diff-filter=AMR "${BASE_SHA}..${HEAD_SHA}" \
-    | grep '\\.sql$' || true
-)
+declare -A file_status_map=()
+changed_sql_files=()
+
+while IFS=$'\t' read -r status path extra; do
+  [[ -z "$status" || -z "$path" ]] && continue
+
+  local_path=""
+  case "$status" in
+    R*)
+      # Renames provide old and new paths.
+      [[ -z "$extra" ]] && continue
+      local_path="$extra"
+      file_status_map["$extra"]="R"
+      ;;
+    *)
+      local_path="$path"
+      file_status_map["$path"]="$status"
+      ;;
+  esac
+
+  [[ $local_path != *.sql ]] && continue
+
+  changed_sql_files+=("$local_path")
+done < <(git diff --name-status --diff-filter=AMR "${BASE_SHA}..${HEAD_SHA}")
 
 if [[ ${#changed_sql_files[@]} -eq 0 ]]; then
   log "No SQL files were added or modified in this pull request."
@@ -42,6 +62,8 @@ if [[ -f "$INTEGRATED_JSON_PATH" ]]; then
 fi
 
 filtered_sql_files=()
+invalid_updates=()
+declare -A seen_filtered=()
 for file in "${changed_sql_files[@]}"; do
   [[ -z "$file" ]] && continue
   if [[ ! -f "$file" ]]; then
@@ -49,7 +71,19 @@ for file in "${changed_sql_files[@]}"; do
     continue
   fi
 
+  status=${file_status_map[$file]:-}
+  # Renaming executed migrations is not allowed.
+  if [[ $status == R* ]]; then
+    invalid_updates+=("$file (rename)")
+    continue
+  fi
+
   stored_sha=${integrated_sha_map[$file]:-}
+  if [[ -n "$stored_sha" && $status != A* ]]; then
+    invalid_updates+=("$file")
+    continue
+  fi
+
   if [[ -n "$stored_sha" ]]; then
     current_sha=$(sha256sum "$file" | awk '{print $1}')
     if [[ "$stored_sha" == "$current_sha" ]]; then
@@ -57,8 +91,16 @@ for file in "${changed_sql_files[@]}"; do
     fi
   fi
 
-  filtered_sql_files+=("$file")
+  if [[ -z "${seen_filtered[$file]:-}" ]]; then
+    filtered_sql_files+=("$file")
+    seen_filtered["$file"]=1
+  fi
 done
+
+if [[ ${#invalid_updates[@]} -gt 0 ]]; then
+  echo "::error::Attempted to modify already executed migrations: ${invalid_updates[*]}" >&2
+  exit 1
+fi
 
 if [[ ${#filtered_sql_files[@]} -eq 0 ]]; then
   log "No SQL file changes require integration."
