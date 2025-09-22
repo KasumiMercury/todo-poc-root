@@ -56,14 +56,14 @@ resource "google_artifact_registry_repository" "app_repo" {
     }
   }
 
-  cleanup_policies {
-    id     = "delete-older"
-    action = "DELETE"
+  # cleanup_policies {
+  #   id     = "delete-older"
+  #   action = "DELETE"
 
-    condition {
-      tag_state = "ANY"
-    }
-  }
+  #   condition {
+  #     tag_state = "ANY"
+  #   }
+  # }
 }
 
 resource "google_artifact_registry_repository_iam_member" "public_reader" {
