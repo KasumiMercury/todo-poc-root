@@ -102,17 +102,7 @@ jobs:
         run: atlas migrate lint --dev-url "docker://postgres/17/test" --git-base "origin/main" --git-dir "$INTEGRATED_DIR"
 
       - name: Commit all migration files
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$INTEGRATED_DIR"
-          git add "$INTEGRATED_JSON_PATH"
-
-          descriptions="${{ steps.process-migrations.outputs.descriptions }}"
-          commit_message="Add migration files for: $descriptions"
-
-          git commit -m "$commit_message" || echo "Nothing to commit"
-          git push
+        uses: autofix-ci/action@v1.3.2
 
   post-migration-summary:
     needs: [check-migrations, integrate-migrations]
