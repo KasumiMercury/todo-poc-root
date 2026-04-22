@@ -102,7 +102,7 @@ jobs:
         run: atlas migrate lint --dev-url "docker://postgres/17/test" --git-base "origin/main" --git-dir "$INTEGRATED_DIR"
 
       - name: Commit all migration files
-        uses: autofix-ci/action@v1.3.2
+        uses: autofix-ci/action@v1.3.4
 
   post-migration-summary:
     needs: [check-migrations, integrate-migrations]
